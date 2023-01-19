@@ -1,0 +1,56 @@
+services:
+  backend:
+    build: backend
+    restart: always
+    secrets:
+      - db-password
+    environment:
+      MYSQL_HOST: db
+    networks:
+      - kaan-bridge
+      - spring-mysql
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    # We use a mariadb image which supports both amd64 & arm64 architecture
+    image: mariadb:10.6.4-focal
+    environment:
+      - MYSQL_DATABASE=app-db
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db-password
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      retries: 5
+      start_period: 30s
+    secrets:
+      - db-password
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - spring-mysql
+  frontend:
+    build:
+      context: frontend
+      target: development
+    ports:
+      - 3000:3000
+    volumes:
+      - ./frontend/src:/code/src
+      - /project/node_modules
+    networks:
+      - kaan-bridge
+    depends_on:
+      - backend
+    expose:
+      - 3306
+      - 33060
+volumes:
+  db-data: {}
+secrets:
+  db-password:
+    file: db/password.txt
+networks:
+  kaan-bridge: {}
+  spring-mysql: {}
